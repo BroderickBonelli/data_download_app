@@ -45,8 +45,16 @@ dex_protocol_chain_dict = {
     'uniswap-v3':['ethereum', 'polygon', 'optimism', 'arbitrum']
 }
 
+#Yield Aggregators
+yield_aggregator_protocol_chain_dict = {
+    'arrakis-finance':['ethereum'],
+    'convex-finance':['ethereum'],
+    'badger-dao':['ethereum'],
+    'gamma':['ethereum']
+}
+
 #sectors selector
-sectors = {'Lending':lending_protocol_chain_dict, "CDP's":cdp_protocol_chain_dict, "DEX's":dex_protocol_chain_dict}
+sectors = {'Lending':lending_protocol_chain_dict, "CDP's":cdp_protocol_chain_dict, "DEX's":dex_protocol_chain_dict, "Yield Aggregators":yield_aggregator_protocol_chain_dict}
 sector_list = [i for i in sectors]
 
 sector = st.sidebar.selectbox(
@@ -72,6 +80,8 @@ elif sector == "CDP's":
     chains = cdp_protocol_chain_dict[protocol]
 elif sector == "DEX's":
     chains = dex_protocol_chain_dict[protocol]
+elif sector == "Yield Aggregators":
+    chains = yield_aggregator_protocol_chain_dict[protocol]
 
 chain_list = [i for i in chains]
 
@@ -143,7 +153,11 @@ url_dict = {
     'uniswap-v3-ethereum':'https://api.thegraph.com/subgraphs/name/messari/uniswap-v3-ethereum',
     'uniswap-v3-polygon':'https://api.thegraph.com/subgraphs/name/messari/uniswap-v3-polygon',
     'uniswap-v3-optimism':'https://api.thegraph.com/subgraphs/name/messari/uniswap-v3-optimism',
-    'uniswap-v3-arbitrum':'https://api.thegraph.com/subgraphs/name/messari/uniswap-v3-arbitrum'
+    'uniswap-v3-arbitrum':'https://api.thegraph.com/subgraphs/name/messari/uniswap-v3-arbitrum',
+    'arrakis-finance-ethereum':'https://api.thegraph.com/subgraphs/name/messari/arrakis-finance-ethereum',
+    'convex-finance-ethereum':'https://api.thegraph.com/subgraphs/name/messari/convex-finance-ethereum',
+    'badger-dao-ethereum':'https://api.thegraph.com/subgraphs/name/messari/badgerdao-ethereum',
+    'gamma-ethereum':'https://api.thegraph.com/subgraphs/name/messari/gamma-ethereum'
 }
 
 #get url for endpoint
@@ -289,6 +303,74 @@ def get_dex_data(endpoint):
 
 
 
+
+
+
+
+##Yield Aggregators
+
+
+def get_yield_aggregators_data(endpoint):
+    financials_daily_data = endpoint.Query.financialsDailySnapshots(first=10000, orderBy=endpoint.FinancialsDailySnapshot.timestamp, orderDirection='desc')
+    financials_df = sg.query_df([
+        financials_daily_data.timestamp,
+        financials_daily_data.totalValueLockedUSD,
+        financials_daily_data.protocolControlledValueUSD,
+        financials_daily_data.dailySupplySideRevenueUSD,
+        financials_daily_data.cumulativeSupplySideRevenueUSD,
+        financials_daily_data.dailyProtocolSideRevenueUSD,
+        financials_daily_data.cumulativeProtocolSideRevenueUSD,
+        financials_daily_data.dailyTotalRevenueUSD,
+        financials_daily_data.cumulativeTotalRevenueUSD
+    ])
+
+    financials_df['financialsDailySnapshots_timestamp'] = financials_df['financialsDailySnapshots_timestamp'].apply(datetime.fromtimestamp).dt.strftime('%Y-%m-%d')
+    financials_df = financials_df.rename(columns={'financialsDailySnapshots_timestamp':'Timestamp', \
+                                                'financialsDailySnapshots_protocolControlledValueUSD':'protocolControlledValueUSD', \
+                                                'financialsDailySnapshots_totalValueLockedUSD':'totalValueLockedUSD', \
+                                                'financialsDailySnapshots_dailySupplySideRevenueUSD':'dailySupplySideRevenueUSD', \
+                                                'financialsDailySnapshots_cumulativeSupplySideRevenueUSD':'cumulativeSupplySideRevenueUSD', \
+                                                'financialsDailySnapshots_dailyProtocolSideRevenueUSD':'dailyProtocolSideRevenueUSD', \
+                                                'financialsDailySnapshots_cumulativeProtocolSideRevenueUSD':'cumulativeProtocolSideRevenueUSD', \
+                                                'financialsDailySnapshots_dailyTotalRevenueUSD':'dailyTotalRevenueUSD', \
+                                                'financialsDailySnapshots_cumulativeTotalRevenueUSD':'cumulativeTotalRevenueUSD'
+                                                })
+
+
+    usage_daily_data = endpoint.Query.usageMetricsDailySnapshots(first=10000, orderBy=endpoint.UsageMetricsDailySnapshot.timestamp, orderDirection='desc')
+    usage_df = sg.query_df([
+        usage_daily_data.timestamp,
+        usage_daily_data.dailyActiveUsers,
+        usage_daily_data.cumulativeUniqueUsers,
+        usage_daily_data.dailyTransactionCount
+        #usage_daily_data.totalPoolCount
+    ])
+
+
+    usage_df['usageMetricsDailySnapshots_timestamp'] = usage_df['usageMetricsDailySnapshots_timestamp'].apply(datetime.fromtimestamp).dt.strftime('%Y-%m-%d')
+    usage_df = usage_df.rename(columns={'usageMetricsDailySnapshots_timestamp':'Timestamp', \
+                                        'usageMetricsDailySnapshots_dailyActiveUsers':'dailyActiveUsers', \
+                                        'usageMetricsDailySnapshots_cumulativeUniqueUsers':'cumulativeUniqueUsers', \
+                                        'usageMetricsDailySnapshots_dailyTransactionCount':'dailyTransactionCount'
+                                        #'usageMetricsDailySnapshots_totalPoolCount':'totalPoolCount'
+                                        })
+
+    combined_df = pd.merge(financials_df, usage_df, on='Timestamp')
+    return combined_df
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 st.title('Data Download Tool')
 st.write('Select a sector, protocol, and chain to download data on revenues, TVL, user metrics, etc.')
 
@@ -303,6 +385,10 @@ if sector == 'Lending' or sector == "CDP's":
 
 elif sector == "DEX's":
     df = get_dex_data(endpoint)
+    st.write(df)
+
+elif sector == "Yield Aggregators":
+    df = get_yield_aggregators_data(endpoint)
     st.write(df)
 
 #call convert_df function on df
